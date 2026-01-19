@@ -120,9 +120,20 @@ export function Footer() {
       <div className="border-t border-white/10">
         <div className="container-news py-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-navy-foreground/60">
-              © {new Date().getFullYear()} Sacco Hub News. All rights reserved.
-            </p>
+          <div className="text-sm text-navy-foreground/60">
+              <p>© {new Date().getFullYear()} Sacco Hub News. All rights reserved.</p>
+              <p className="mt-1">
+                Developed by{" "}
+                <a 
+                  href="https://javalab.co.ke" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-accent hover:text-white transition-colors"
+                >
+                  JL Softwares & Digital Systems
+                </a>
+              </p>
+          </div>
             <div className="flex gap-6">
               <Link to="/privacy" className="text-sm text-navy-foreground/60 hover:text-white transition-colors">
                 Privacy Policy
