@@ -23,11 +23,14 @@ export function Header() {
       <div className="container-news">
         <div className="flex h-20 items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-2">
             <img src={logo} alt="Sacco Hub News" className="h-12 w-auto" />
-            <div className="hidden sm:block">
-              <span className="text-xl font-heading font-bold text-primary">Sacco Hub</span>
-              <span className="text-xl font-heading font-bold text-accent ml-1">News</span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-lg sm:text-xl font-heading font-bold">
+                <span className="text-primary">SACCO</span>
+                <span className="text-accent">HUB</span>
+              </span>
+              <span className="text-lg sm:text-xl font-heading font-bold text-accent">NEWS</span>
             </div>
           </Link>
 
