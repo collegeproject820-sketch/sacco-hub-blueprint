@@ -9,6 +9,7 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import Index from "./pages/Index";
 import About from "./pages/About";
 import News from "./pages/News";
+import NewsArticle from "./pages/NewsArticle";
 import Events from "./pages/Events";
 import Advertise from "./pages/Advertise";
 import SubmitNews from "./pages/SubmitNews";
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/about" element={<About />} />
             <Route path="/news" element={<News />} />
+            <Route path="/news/:slug" element={<NewsArticle />} />
             <Route path="/events" element={<Events />} />
             <Route path="/advertise" element={<Advertise />} />
             <Route path="/submit-news" element={<SubmitNews />} />
