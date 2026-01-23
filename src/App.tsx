@@ -16,6 +16,10 @@ import SubmitNews from "./pages/SubmitNews";
 import Contact from "./pages/Contact";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Account from "./pages/Account";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+import Editorial from "./pages/Editorial";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/admin/Dashboard";
 import NewsManagement from "./pages/admin/NewsManagement";
@@ -45,6 +49,10 @@ const App = () => (
             <Route path="/contact" element={<Contact />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/editorial" element={<Editorial />} />
             
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
