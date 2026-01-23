@@ -8,6 +8,7 @@ import { Calendar, Clock, Search, ChevronRight } from "lucide-react";
 import { useRealtimeNews } from "@/hooks/useRealtimeNews";
 import { useRealtimeCategories } from "@/hooks/useRealtimeCategories";
 import { format } from "date-fns";
+import { Helmet } from "react-helmet-async";
 
 const News = () => {
   const [searchParams] = useSearchParams();
@@ -57,8 +58,14 @@ const News = () => {
   const allCategories = [{ id: "all", name: "All News", slug: "all" }, ...categories];
 
   return (
-    <Layout>
-      {/* Header */}
+    <>
+      <Helmet>
+        <title>News & Articles - Sacco Hub News</title>
+        <meta name="description" content="Latest SACCO news, business updates, finance articles, and cooperative sector developments in Kenya." />
+        <meta property="og:title" content="News & Articles - Sacco Hub News" />
+        <meta property="og:description" content="Latest SACCO news, business updates, finance articles, and cooperative sector developments in Kenya." />
+      </Helmet>
+      <Layout>
       <section className="hero-gradient py-16 md:py-20">
         <div className="container-news">
           <div className="max-w-3xl mx-auto text-center">
@@ -178,6 +185,7 @@ const News = () => {
         </div>
       </section>
     </Layout>
+    </>
   );
 };
 

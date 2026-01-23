@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, Newspaper, Calendar, Image, FileText, TrendingUp } from 'lucide-react';
+import { Users, Newspaper, Calendar, Image, FileText, TrendingUp, Lightbulb, BookOpen, Megaphone, Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DashboardStats {
   totalUsers: number;
@@ -13,6 +15,7 @@ interface DashboardStats {
 }
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalPosts: 0,
@@ -105,13 +108,58 @@ export default function AdminDashboard() {
     },
   ];
 
+  const gettingStartedGuides = [
+    {
+      icon: Newspaper,
+      title: 'Publish Your First Article',
+      description: 'Go to News Posts → Click "Add News Post" → Fill in details → Toggle "Published" → Save',
+      link: '/admin/news',
+      linkText: 'Create News Post',
+    },
+    {
+      icon: FileText,
+      title: 'Review User Submissions',
+      description: 'Check Submissions → Review content → Click "Approve" to publish or "Reject" with feedback',
+      link: '/admin/submissions',
+      linkText: 'View Submissions',
+    },
+    {
+      icon: Calendar,
+      title: 'Add Upcoming Events',
+      description: 'Go to Events → Click "Add Event" → Set date, location, details → Enable "Published"',
+      link: '/admin/events',
+      linkText: 'Manage Events',
+    },
+    {
+      icon: Megaphone,
+      title: 'Manage Advertisements',
+      description: 'Go to Adverts → Add banner with image URL → Set expiry date → Toggle active status',
+      link: '/admin/adverts',
+      linkText: 'Manage Adverts',
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold font-heading">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome to Sacco Hub News Admin Panel</p>
+      {/* Welcome Header */}
+      <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-xl p-6 border border-primary/20">
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-lg bg-primary/10">
+            <Lightbulb className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold font-heading">
+              Welcome to Sacco Hub News Admin Panel
+            </h1>
+            <p className="text-muted-foreground mt-2 max-w-2xl">
+              Manage your news platform from here. Publish articles, approve submissions, 
+              create events, and control all content that appears on the public website.
+            </p>
+          </div>
+        </div>
       </div>
 
+      {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {statCards.map((card) => (
           <Card key={card.title} className="border-border/50">
@@ -132,14 +180,52 @@ export default function AdminDashboard() {
         ))}
       </div>
 
+      {/* Getting Started Section */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">Getting Started Guide</CardTitle>
+          </div>
+          <CardDescription>
+            Quick tips to help you manage your news platform effectively
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            {gettingStartedGuides.map((guide, index) => (
+              <div 
+                key={index}
+                className="flex gap-4 p-4 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors"
+              >
+                <div className="p-2 rounded-lg bg-primary/10 h-fit">
+                  <guide.icon className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-sm mb-1">{guide.title}</h4>
+                  <p className="text-xs text-muted-foreground mb-3">{guide.description}</p>
+                  <Link 
+                    to={guide.link}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    {guide.linkText} →
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Quick Actions */}
         <Card className="border-border/50">
           <CardHeader>
             <CardTitle className="text-lg">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <a
-              href="/admin/news"
+            <Link
+              to="/admin/news"
               className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
             >
               <div className="p-2 rounded-lg bg-primary/10">
@@ -149,9 +235,9 @@ export default function AdminDashboard() {
                 <p className="font-medium">Create News Post</p>
                 <p className="text-sm text-muted-foreground">Add new article to the website</p>
               </div>
-            </a>
-            <a
-              href="/admin/submissions"
+            </Link>
+            <Link
+              to="/admin/submissions"
               className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
             >
               <div className="p-2 rounded-lg bg-amber-500/10">
@@ -163,9 +249,9 @@ export default function AdminDashboard() {
                   {stats.pendingSubmissions} pending review
                 </p>
               </div>
-            </a>
-            <a
-              href="/admin/events"
+            </Link>
+            <Link
+              to="/admin/events"
               className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
             >
               <div className="p-2 rounded-lg bg-purple-500/10">
@@ -175,10 +261,23 @@ export default function AdminDashboard() {
                 <p className="font-medium">Manage Events</p>
                 <p className="text-sm text-muted-foreground">Add or edit events</p>
               </div>
-            </a>
+            </Link>
+            <Link
+              to="/admin/settings"
+              className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
+            >
+              <div className="p-2 rounded-lg bg-muted">
+                <Settings className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-medium">Site Settings</p>
+                <p className="text-sm text-muted-foreground">Update branding & contact info</p>
+              </div>
+            </Link>
           </CardContent>
         </Card>
 
+        {/* System Status */}
         <Card className="border-border/50">
           <CardHeader>
             <CardTitle className="text-lg">System Status</CardTitle>
@@ -196,6 +295,13 @@ export default function AdminDashboard() {
               <span className="flex items-center gap-2 text-sm text-emerald-600">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
                 Active
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Real-time Updates</span>
+              <span className="flex items-center gap-2 text-sm text-emerald-600">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                Enabled
               </span>
             </div>
             <div className="flex items-center justify-between">
