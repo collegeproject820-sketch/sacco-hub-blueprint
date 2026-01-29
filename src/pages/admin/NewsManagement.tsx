@@ -3,8 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -13,6 +12,8 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Loader2, Eye } from 'lucide-react';
 import type { Tables, TablesInsert } from '@/integrations/supabase/types';
+import { RichTextEditor } from '@/components/admin/RichTextEditor';
+import { ImageUpload } from '@/components/admin/ImageUpload';
 
 type NewsPost = Tables<'news_posts'>;
 type Category = Tables<'categories'>;
@@ -29,7 +30,7 @@ export default function NewsManagement() {
   // Form state
   const [title, setTitle] = useState('');
   const [excerpt, setExcerpt] = useState('');
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState('<p>Start writing your article...</p>');
   const [categoryId, setCategoryId] = useState('');
   const [featuredImage, setFeaturedImage] = useState('');
   const [isPublished, setIsPublished] = useState(false);
@@ -58,7 +59,7 @@ export default function NewsManagement() {
   const resetForm = () => {
     setTitle('');
     setExcerpt('');
-    setContent('');
+    setContent('<p>Start writing your article...</p>');
     setCategoryId('');
     setFeaturedImage('');
     setIsPublished(false);
@@ -212,53 +213,46 @@ export default function NewsManagement() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="excerpt">Excerpt</Label>
-                <Textarea
+                <Label htmlFor="excerpt">Excerpt (Brief summary)</Label>
+                <Input
                   id="excerpt"
                   value={excerpt}
                   onChange={(e) => setExcerpt(e.target.value)}
-                  rows={2}
+                  placeholder="A brief summary of the article..."
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="content">Content</Label>
-                <Textarea
-                  id="content"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  rows={8}
-                  required
+                <Label>Content</Label>
+                <RichTextEditor
+                  content={content}
+                  onChange={setContent}
+                  placeholder="Start writing your article..."
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Select value={categoryId} onValueChange={setCategoryId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="featuredImage">Featured Image URL</Label>
-                  <Input
-                    id="featuredImage"
-                    value={featuredImage}
-                    onChange={(e) => setFeaturedImage(e.target.value)}
-                    placeholder="https://..."
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Select value={categoryId} onValueChange={setCategoryId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
+              <ImageUpload
+                value={featuredImage}
+                onChange={setFeaturedImage}
+                folder="news"
+                label="Featured Image"
+              />
 
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">

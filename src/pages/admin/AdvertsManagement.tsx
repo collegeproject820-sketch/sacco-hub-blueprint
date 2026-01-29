@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { ImageUpload } from '@/components/admin/ImageUpload';
 
 export default function AdvertsManagement() {
   const [adverts, setAdverts] = useState<any[]>([]);
@@ -72,8 +73,8 @@ export default function AdvertsManagement() {
             <DialogHeader><DialogTitle>{editingAdvert ? 'Edit' : 'Create'} Advert</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div><Label>Title</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} required /></div>
-              <div><Label>Banner URL</Label><Input value={bannerUrl} onChange={(e) => setBannerUrl(e.target.value)} /></div>
-              <div><Label>Link URL</Label><Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} /></div>
+              <ImageUpload value={bannerUrl} onChange={setBannerUrl} folder="adverts" label="Banner Image" />
+              <div><Label>Link URL (optional)</Label><Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://..." /></div>
               <div><Label>Expires</Label><Input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} /></div>
               <div className="flex items-center gap-2"><Switch checked={isActive} onCheckedChange={setIsActive} /><Label>Active</Label></div>
               <div className="flex justify-end gap-2">

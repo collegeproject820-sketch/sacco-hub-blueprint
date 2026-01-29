@@ -25,19 +25,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserRole = async (userId: string): Promise<AppRole | null> => {
     try {
+      // Fetch all roles for the user - if they have 'admin', that takes priority
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
-        .eq('user_id', userId)
-        .single();
+        .eq('user_id', userId);
 
       if (error) {
         console.error('Error fetching role:', error);
         return null;
       }
-      return data?.role || null;
+      
+      if (!data || data.length === 0) return null;
+      
+      // Check if user has admin role - admin takes priority
+      const hasAdmin = data.some(r => r.role === 'admin');
+      if (hasAdmin) return 'admin';
+      
+      // Otherwise return first role found
+      return data[0]?.role || null;
     } catch (error) {
       console.error('Error fetching role:', error);
       return null;
