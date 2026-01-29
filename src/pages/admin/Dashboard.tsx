@@ -1,9 +1,32 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, Newspaper, Calendar, Image, FileText, TrendingUp, Lightbulb, BookOpen, Megaphone, Settings } from 'lucide-react';
+import { 
+  Users, 
+  Newspaper, 
+  Calendar, 
+  Image, 
+  FileText, 
+  TrendingUp, 
+  Clock,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  PenLine,
+  Send,
+  Star,
+  Eye,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { format } from 'date-fns';
+import type { Tables } from '@/integrations/supabase/types';
+
+type NewsPost = Tables<'news_posts'>;
+type NewsSubmission = Tables<'news_submissions'>;
 
 interface DashboardStats {
   totalUsers: number;
@@ -12,6 +35,8 @@ interface DashboardStats {
   activeAdverts: number;
   totalEvents: number;
   publishedPosts: number;
+  draftPosts: number;
+  featuredPosts: number;
 }
 
 export default function AdminDashboard() {
@@ -23,297 +48,326 @@ export default function AdminDashboard() {
     activeAdverts: 0,
     totalEvents: 0,
     publishedPosts: 0,
+    draftPosts: 0,
+    featuredPosts: 0,
   });
+  const [recentPosts, setRecentPosts] = useState<NewsPost[]>([]);
+  const [pendingSubmissions, setPendingSubmissions] = useState<NewsSubmission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchDashboardData = async () => {
       try {
         const [
           { count: usersCount },
           { count: postsCount },
           { count: publishedCount },
+          { count: draftCount },
+          { count: featuredCount },
           { count: submissionsCount },
           { count: advertsCount },
           { count: eventsCount },
+          { data: recentPostsData },
+          { data: submissionsData },
         ] = await Promise.all([
           supabase.from('profiles').select('*', { count: 'exact', head: true }),
           supabase.from('news_posts').select('*', { count: 'exact', head: true }),
           supabase.from('news_posts').select('*', { count: 'exact', head: true }).eq('is_published', true),
+          supabase.from('news_posts').select('*', { count: 'exact', head: true }).eq('is_published', false),
+          supabase.from('news_posts').select('*', { count: 'exact', head: true }).eq('is_featured', true),
           supabase.from('news_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabase.from('adverts').select('*', { count: 'exact', head: true }).eq('is_active', true),
-          supabase.from('events').select('*', { count: 'exact', head: true }),
+          supabase.from('events').select('*', { count: 'exact', head: true }).eq('is_published', true),
+          supabase.from('news_posts').select('*').order('created_at', { ascending: false }).limit(5),
+          supabase.from('news_submissions').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
         ]);
 
         setStats({
           totalUsers: usersCount || 0,
           totalPosts: postsCount || 0,
           publishedPosts: publishedCount || 0,
+          draftPosts: draftCount || 0,
+          featuredPosts: featuredCount || 0,
           pendingSubmissions: submissionsCount || 0,
           activeAdverts: advertsCount || 0,
           totalEvents: eventsCount || 0,
         });
+
+        setRecentPosts(recentPostsData || []);
+        setPendingSubmissions(submissionsData || []);
       } catch (error) {
-        console.error('Error fetching stats:', error);
+        console.error('Error fetching dashboard data:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchStats();
+    fetchDashboardData();
   }, []);
 
   const statCards = [
     {
-      title: 'Total Users',
-      value: stats.totalUsers,
-      icon: Users,
+      title: 'Total Articles',
+      value: stats.totalPosts,
+      icon: Newspaper,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
     },
     {
-      title: 'News Posts',
-      value: stats.totalPosts,
-      icon: Newspaper,
-      color: 'text-sky-600',
-      bgColor: 'bg-sky-500/10',
-    },
-    {
       title: 'Published',
       value: stats.publishedPosts,
-      icon: TrendingUp,
+      icon: CheckCircle2,
       color: 'text-emerald-600',
       bgColor: 'bg-emerald-500/10',
     },
     {
-      title: 'Pending Submissions',
-      value: stats.pendingSubmissions,
-      icon: FileText,
+      title: 'Drafts',
+      value: stats.draftPosts,
+      icon: PenLine,
       color: 'text-amber-600',
       bgColor: 'bg-amber-500/10',
+    },
+    {
+      title: 'Pending Review',
+      value: stats.pendingSubmissions,
+      icon: Send,
+      color: 'text-sky-600',
+      bgColor: 'bg-sky-500/10',
+      urgent: stats.pendingSubmissions > 0,
     },
     {
       title: 'Active Adverts',
       value: stats.activeAdverts,
       icon: Image,
-      color: 'text-accent',
-      bgColor: 'bg-accent/10',
-    },
-    {
-      title: 'Events',
-      value: stats.totalEvents,
-      icon: Calendar,
       color: 'text-purple-600',
       bgColor: 'bg-purple-500/10',
     },
+    {
+      title: 'Live Events',
+      value: stats.totalEvents,
+      icon: Calendar,
+      color: 'text-accent',
+      bgColor: 'bg-accent/10',
+    },
   ];
 
-  const gettingStartedGuides = [
-    {
-      icon: Newspaper,
-      title: 'Publish Your First Article',
-      description: 'Go to News Posts → Click "Add News Post" → Fill in details → Toggle "Published" → Save',
-      link: '/admin/news',
-      linkText: 'Create News Post',
-    },
-    {
-      icon: FileText,
-      title: 'Review User Submissions',
-      description: 'Check Submissions → Review content → Click "Approve" to publish or "Reject" with feedback',
-      link: '/admin/submissions',
-      linkText: 'View Submissions',
-    },
-    {
-      icon: Calendar,
-      title: 'Add Upcoming Events',
-      description: 'Go to Events → Click "Add Event" → Set date, location, details → Enable "Published"',
-      link: '/admin/events',
-      linkText: 'Manage Events',
-    },
-    {
-      icon: Megaphone,
-      title: 'Manage Advertisements',
-      description: 'Go to Adverts → Add banner with image URL → Set expiry date → Toggle active status',
-      link: '/admin/adverts',
-      linkText: 'Manage Adverts',
-    },
+  const quickActions = [
+    { label: 'New Article', path: '/admin/news', icon: PenLine },
+    { label: 'Review Submissions', path: '/admin/submissions', icon: FileText },
+    { label: 'Manage Events', path: '/admin/events', icon: Calendar },
+    { label: 'View Users', path: '/admin/users', icon: Users },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-24 w-full" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-28" />
+          ))}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Skeleton className="h-80" />
+          <Skeleton className="h-80" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-xl p-6 border border-primary/20">
-        <div className="flex items-start gap-4">
-          <div className="p-3 rounded-lg bg-primary/10">
-            <Lightbulb className="h-6 w-6 text-primary" />
+      {/* Welcome Banner */}
+      <Card className="bg-card border-border overflow-hidden">
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">
+                Welcome to the Newsroom
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                Manage your editorial content, review submissions, and monitor platform activity.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {quickActions.slice(0, 2).map((action) => (
+                <Button key={action.path} asChild variant="outline" size="sm">
+                  <Link to={action.path}>
+                    <action.icon className="mr-2 h-4 w-4" />
+                    {action.label}
+                  </Link>
+                </Button>
+              ))}
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold font-heading">
-              Welcome to Sacco Hub News Admin Panel
-            </h1>
-            <p className="text-muted-foreground mt-2 max-w-2xl">
-              Manage your news platform from here. Publish articles, approve submissions, 
-              create events, and control all content that appears on the public website.
-            </p>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {statCards.map((card) => (
-          <Card key={card.title} className="border-border/50">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {card.title}
-              </CardTitle>
-              <div className={`p-2 rounded-lg ${card.bgColor}`}>
-                <card.icon className={`h-4 w-4 ${card.color}`} />
+          <Card key={card.title} className="bg-card border-border">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className={`p-2 rounded-lg ${card.bgColor}`}>
+                  <card.icon className={`h-4 w-4 ${card.color}`} />
+                </div>
+                {card.urgent && (
+                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">
+                    Action Needed
+                  </Badge>
+                )}
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">
-                {isLoading ? '...' : card.value}
+              <div className="mt-3">
+                <p className="text-2xl font-bold text-foreground">{card.value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{card.title}</p>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Getting Started Section */}
-      <Card className="border-border/50">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Getting Started Guide</CardTitle>
-          </div>
-          <CardDescription>
-            Quick tips to help you manage your news platform effectively
-          </CardDescription>
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Recent Articles */}
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-semibold">Recent Articles</CardTitle>
+                <CardDescription>Latest content from the newsroom</CardDescription>
+              </div>
+              <Button asChild variant="ghost" size="sm" className="text-primary">
+                <Link to="/admin/news">
+                  View All <ArrowRight className="ml-1 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {recentPosts.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground">
+                <Newspaper className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                <p>No articles yet. Create your first article.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {recentPosts.map((post) => (
+                  <div key={post.id} className="px-6 py-3 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-medium text-foreground truncate">
+                          {post.title}
+                        </h4>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {format(new Date(post.created_at), 'MMM d, yyyy')}
+                          </span>
+                          {post.is_featured && (
+                            <span className="text-xs text-gold flex items-center gap-1">
+                              <Star className="h-3 w-3" />
+                              Featured
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Badge 
+                        variant={post.is_published ? "default" : "secondary"}
+                        className={post.is_published ? "bg-success/10 text-success" : ""}
+                      >
+                        {post.is_published ? 'Published' : 'Draft'}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Pending Submissions */}
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  Pending Submissions
+                  {stats.pendingSubmissions > 0 && (
+                    <Badge variant="destructive" className="text-[10px]">
+                      {stats.pendingSubmissions}
+                    </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>Reader submissions awaiting review</CardDescription>
+              </div>
+              <Button asChild variant="ghost" size="sm" className="text-primary">
+                <Link to="/admin/submissions">
+                  Review All <ArrowRight className="ml-1 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {pendingSubmissions.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground">
+                <CheckCircle2 className="h-10 w-10 mx-auto mb-2 text-success opacity-70" />
+                <p>All caught up! No pending submissions.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {pendingSubmissions.map((submission) => (
+                  <div key={submission.id} className="px-6 py-3 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-medium text-foreground truncate">
+                          {submission.title}
+                        </h4>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-xs text-muted-foreground">
+                            by {submission.author_name}
+                          </span>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {format(new Date(submission.created_at), 'MMM d')}
+                          </span>
+                        </div>
+                      </div>
+                      <Badge className="bg-gold/10 text-gold">
+                        Pending
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
+          <CardDescription>Common tasks and shortcuts</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            {gettingStartedGuides.map((guide, index) => (
-              <div 
-                key={index}
-                className="flex gap-4 p-4 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors"
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {quickActions.map((action) => (
+              <Button
+                key={action.path}
+                asChild
+                variant="outline"
+                className="h-auto py-4 flex flex-col items-center gap-2 hover:bg-muted hover:border-primary/30"
               >
-                <div className="p-2 rounded-lg bg-primary/10 h-fit">
-                  <guide.icon className="h-4 w-4 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-sm mb-1">{guide.title}</h4>
-                  <p className="text-xs text-muted-foreground mb-3">{guide.description}</p>
-                  <Link 
-                    to={guide.link}
-                    className="text-xs font-medium text-primary hover:underline"
-                  >
-                    {guide.linkText} →
-                  </Link>
-                </div>
-              </div>
+                <Link to={action.path}>
+                  <action.icon className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-sm font-medium">{action.label}</span>
+                </Link>
+              </Button>
             ))}
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Quick Actions */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle className="text-lg">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Link
-              to="/admin/news"
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
-            >
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Newspaper className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">Create News Post</p>
-                <p className="text-sm text-muted-foreground">Add new article to the website</p>
-              </div>
-            </Link>
-            <Link
-              to="/admin/submissions"
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
-            >
-              <div className="p-2 rounded-lg bg-amber-500/10">
-                <FileText className="h-4 w-4 text-amber-600" />
-              </div>
-              <div>
-                <p className="font-medium">Review Submissions</p>
-                <p className="text-sm text-muted-foreground">
-                  {stats.pendingSubmissions} pending review
-                </p>
-              </div>
-            </Link>
-            <Link
-              to="/admin/events"
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
-            >
-              <div className="p-2 rounded-lg bg-purple-500/10">
-                <Calendar className="h-4 w-4 text-purple-600" />
-              </div>
-              <div>
-                <p className="font-medium">Manage Events</p>
-                <p className="text-sm text-muted-foreground">Add or edit events</p>
-              </div>
-            </Link>
-            <Link
-              to="/admin/settings"
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
-            >
-              <div className="p-2 rounded-lg bg-muted">
-                <Settings className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="font-medium">Site Settings</p>
-                <p className="text-sm text-muted-foreground">Update branding & contact info</p>
-              </div>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* System Status */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle className="text-lg">System Status</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Database Connection</span>
-              <span className="flex items-center gap-2 text-sm text-emerald-600">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Connected
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Authentication</span>
-              <span className="flex items-center gap-2 text-sm text-emerald-600">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Active
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Real-time Updates</span>
-              <span className="flex items-center gap-2 text-sm text-emerald-600">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Enabled
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Storage</span>
-              <span className="flex items-center gap-2 text-sm text-emerald-600">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Available
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
