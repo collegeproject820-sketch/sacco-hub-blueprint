@@ -223,6 +223,24 @@ export type Database = {
         }
         Relationships: []
       }
+      page_views: {
+        Row: {
+          created_at: string
+          id: string
+          path: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          path: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          path?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -322,6 +340,24 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      visitors: {
+        Row: {
+          created_at: string
+          device_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          id?: string
         }
         Relationships: []
       }

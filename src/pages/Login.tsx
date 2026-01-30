@@ -42,15 +42,12 @@ export default function Login() {
       description: 'You have successfully logged in.',
     });
 
-    // Small delay to allow role to be fetched
-    setTimeout(() => {
-      // Check if user is admin and redirect accordingly
-      if (from.startsWith('/admin')) {
-        navigate(from, { replace: true });
-      } else {
-        navigate('/', { replace: true });
-      }
-    }, 500);
+    // Redirect immediately — role is already fetched in AuthContext before isLoading=false
+    if (from.startsWith('/admin')) {
+      navigate(from, { replace: true });
+    } else {
+      navigate('/', { replace: true });
+    }
   };
 
   return (
