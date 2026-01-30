@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
+import { useRealtimeAnalytics } from '@/hooks/useRealtimeAnalytics';
 import { 
   Users, 
   Newspaper, 
@@ -19,6 +20,7 @@ import {
   Send,
   Star,
   Eye,
+  Activity,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,6 +43,7 @@ interface DashboardStats {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const { visitors24h, pageViews24h, isLoading: analyticsLoading } = useRealtimeAnalytics();
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalPosts: 0,
@@ -107,6 +110,22 @@ export default function AdminDashboard() {
 
   const statCards = [
     {
+      title: 'Visitors (24h)',
+      value: visitors24h,
+      icon: Users,
+      color: 'text-sky-600',
+      bgColor: 'bg-sky-500/10',
+      realtime: true,
+    },
+    {
+      title: 'Page Views (24h)',
+      value: pageViews24h,
+      icon: Activity,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-500/10',
+      realtime: true,
+    },
+    {
       title: 'Total Articles',
       value: stats.totalPosts,
       icon: Newspaper,
@@ -121,26 +140,12 @@ export default function AdminDashboard() {
       bgColor: 'bg-emerald-500/10',
     },
     {
-      title: 'Drafts',
-      value: stats.draftPosts,
-      icon: PenLine,
-      color: 'text-amber-600',
-      bgColor: 'bg-amber-500/10',
-    },
-    {
       title: 'Pending Review',
       value: stats.pendingSubmissions,
       icon: Send,
-      color: 'text-sky-600',
-      bgColor: 'bg-sky-500/10',
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-500/10',
       urgent: stats.pendingSubmissions > 0,
-    },
-    {
-      title: 'Active Adverts',
-      value: stats.activeAdverts,
-      icon: Image,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-500/10',
     },
     {
       title: 'Live Events',
