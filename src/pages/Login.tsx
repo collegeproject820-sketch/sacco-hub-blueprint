@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -14,12 +14,25 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, isAdmin } = useAuth();
+  const { signIn, user, isAdmin, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      if (isAdmin) {
+        navigate('/admin', { replace: true });
+      } else if (from.startsWith('/admin')) {
+        navigate('/', { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
+    }
+  }, [user, isAdmin, authLoading, navigate, from]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,12 +55,8 @@ export default function Login() {
       description: 'You have successfully logged in.',
     });
 
-    // Redirect immediately — role is already fetched in AuthContext before isLoading=false
-    if (from.startsWith('/admin')) {
-      navigate(from, { replace: true });
-    } else {
-      navigate('/', { replace: true });
-    }
+    // The useEffect above will handle navigation once auth state updates
+    setIsLoading(false);
   };
 
   return (
