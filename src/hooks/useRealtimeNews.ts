@@ -11,25 +11,33 @@ export function useRealtimeNews(options?: { featured?: boolean; limit?: number }
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchNews = async () => {
-    let query = supabase
-      .from('news_posts')
-      .select('*, categories(*)')
-      .eq('is_published', true)
-      .order('published_at', { ascending: false });
+    try {
+      let query = supabase
+        .from('news_posts')
+        .select('*, categories(*)')
+        .eq('is_published', true)
+        .order('published_at', { ascending: false });
 
-    if (options?.featured) {
-      query = query.eq('is_featured', true);
-    }
+      if (options?.featured) {
+        query = query.eq('is_featured', true);
+      }
 
-    if (options?.limit) {
-      query = query.limit(options.limit);
-    }
+      if (options?.limit) {
+        query = query.limit(options.limit);
+      }
 
-    const { data, error } = await query;
-    if (!error && data) {
-      setNews(data);
+      const { data, error } = await query;
+      if (error) {
+        console.error('Error fetching news:', error);
+      }
+      if (data) {
+        setNews(data);
+      }
+    } catch (err) {
+      console.error('Error fetching news:', err);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   useEffect(() => {
