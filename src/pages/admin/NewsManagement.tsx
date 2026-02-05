@@ -14,6 +14,9 @@ import { Plus, Pencil, Trash2, Loader2, Eye } from 'lucide-react';
 import type { Tables, TablesInsert } from '@/integrations/supabase/types';
 import { RichTextEditor } from '@/components/admin/RichTextEditor';
 import { ImageUpload } from '@/components/admin/ImageUpload';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/data-state';
+import { useAdminActivityLog } from '@/hooks/useAdminActivityLog';
 
 type NewsPost = Tables<'news_posts'>;
 type Category = Tables<'categories'>;
@@ -25,7 +28,11 @@ export default function NewsManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<NewsPost | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; post: NewsPost | null }>({ open: false, post: null });
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+  const { logActivity } = useAdminActivityLog();
 
   // Form state
   const [title, setTitle] = useState('');
@@ -38,15 +45,21 @@ export default function NewsManagement() {
 
   const fetchData = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const [{ data: postsData }, { data: categoriesData }] = await Promise.all([
         supabase.from('news_posts').select('*').order('created_at', { ascending: false }),
         supabase.from('categories').select('*').order('name'),
       ]);
+      if (!postsData) {
+        setError('Failed to load posts. Please check your permissions.');
+        return;
+      }
       setPosts(postsData || []);
       setCategories(categoriesData || []);
     } catch (error) {
       console.error('Error fetching data:', error);
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -112,13 +125,27 @@ export default function NewsManagement() {
 
         if (error) throw error;
         toast({ title: 'Post updated successfully' });
+        logActivity({
+          action: 'update',
+          entityType: 'news_post',
+          entityId: editingPost.id,
+          details: { title }
+        });
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('news_posts')
-          .insert(postData as TablesInsert<'news_posts'>);
+          .insert(postData as TablesInsert<'news_posts'>)
+          .select('id')
+          .single();
 
         if (error) throw error;
         toast({ title: 'Post created successfully' });
+        logActivity({
+          action: 'create',
+          entityType: 'news_post',
+          entityId: data?.id,
+          details: { title }
+        });
       }
 
       setIsDialogOpen(false);
@@ -135,13 +162,21 @@ export default function NewsManagement() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this post?')) return;
-
+  const handleDelete = async () => {
+    const post = deleteConfirm.post;
+    if (!post) return;
+    
+    setIsDeleting(true);
     try {
-      const { error } = await supabase.from('news_posts').delete().eq('id', id);
+      const { error } = await supabase.from('news_posts').delete().eq('id', post.id);
       if (error) throw error;
       toast({ title: 'Post deleted successfully' });
+      logActivity({
+        action: 'delete',
+        entityType: 'news_post',
+        entityId: post.id,
+        details: { title: post.title }
+      });
       fetchData();
     } catch (error: any) {
       toast({
@@ -149,21 +184,31 @@ export default function NewsManagement() {
         title: 'Error',
         description: error.message,
       });
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirm({ open: false, post: null });
     }
   };
 
   const togglePublish = async (post: NewsPost) => {
     try {
+      const newStatus = !post.is_published;
       const { error } = await supabase
         .from('news_posts')
         .update({ 
-          is_published: !post.is_published,
-          published_at: !post.is_published ? new Date().toISOString() : null
+          is_published: newStatus,
+          published_at: newStatus ? new Date().toISOString() : null
         })
         .eq('id', post.id);
 
       if (error) throw error;
-      toast({ title: `Post ${post.is_published ? 'unpublished' : 'published'}` });
+      toast({ title: `Post ${newStatus ? 'published' : 'unpublished'}` });
+      logActivity({
+        action: newStatus ? 'publish' : 'unpublish',
+        entityType: 'news_post',
+        entityId: post.id,
+        details: { title: post.title }
+      });
       fetchData();
     } catch (error: any) {
       toast({
@@ -291,13 +336,15 @@ export default function NewsManagement() {
       <Card className="border-border/50">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <LoadingState message="Loading articles..." />
+          ) : error ? (
+            <ErrorState title="Failed to load posts" description={error} onRetry={fetchData} />
           ) : posts.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              No news posts yet. Create your first post!
-            </div>
+            <EmptyState 
+              title="No articles yet"
+              description="Create your first news article to get started."
+              action={{ label: 'Create Article', onClick: () => setIsDialogOpen(true) }}
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -348,7 +395,7 @@ export default function NewsManagement() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(post.id)}
+                          onClick={() => setDeleteConfirm({ open: true, post })}
                           className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -362,6 +409,17 @@ export default function NewsManagement() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm({ open, post: deleteConfirm.post })}
+        title="Delete Article"
+        description={`Are you sure you want to delete "${deleteConfirm.post?.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="destructive"
+        onConfirm={handleDelete}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

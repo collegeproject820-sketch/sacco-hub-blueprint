@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -6,11 +7,20 @@ type NewsPost = Tables<'news_posts'> & {
   categories?: Tables<'categories'> | null;
 };
 
-export function useRealtimeNews(options?: { featured?: boolean; limit?: number }) {
+interface UseRealtimeNewsReturn {
+  news: NewsPost[];
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+}
+
+export function useRealtimeNews(options?: { featured?: boolean; limit?: number }): UseRealtimeNewsReturn {
   const [news, setNews] = useState<NewsPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchNews = async () => {
+  const fetchNews = useCallback(async () => {
+    setError(null);
     try {
       let query = supabase
         .from('news_posts')
@@ -26,19 +36,22 @@ export function useRealtimeNews(options?: { featured?: boolean; limit?: number }
         query = query.limit(options.limit);
       }
 
-      const { data, error } = await query;
-      if (error) {
-        console.error('Error fetching news:', error);
+      const { data, error: fetchError } = await query;
+      if (fetchError) {
+        console.error('Error fetching news:', fetchError);
+        setError('Failed to load news articles. Please try again.');
+        return;
       }
       if (data) {
         setNews(data);
       }
     } catch (err) {
       console.error('Error fetching news:', err);
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [options?.featured, options?.limit]);
 
   useEffect(() => {
     fetchNews();
@@ -57,7 +70,7 @@ export function useRealtimeNews(options?: { featured?: boolean; limit?: number }
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [options?.featured, options?.limit]);
+  }, [fetchNews]);
 
-  return { news, isLoading, refetch: fetchNews };
+  return { news, isLoading, error, refetch: fetchNews };
 }

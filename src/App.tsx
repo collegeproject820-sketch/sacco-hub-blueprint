@@ -28,6 +28,8 @@ import AdvertsManagement from "./pages/admin/AdvertsManagement";
 import EventsManagement from "./pages/admin/EventsManagement";
 import SubmissionsManagement from "./pages/admin/SubmissionsManagement";
 import SettingsManagement from "./pages/admin/SettingsManagement";
+import CategoriesManagement from "./pages/admin/CategoriesManagement";
+import ActivityLogs from "./pages/admin/ActivityLogs";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +64,8 @@ const App = () => (
             <Route path="/admin/events" element={<ProtectedRoute requireAdmin><AdminLayout><EventsManagement /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/submissions" element={<ProtectedRoute requireAdmin><AdminLayout><SubmissionsManagement /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminLayout><SettingsManagement /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/categories" element={<ProtectedRoute requireAdmin><AdminLayout><CategoriesManagement /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/logs" element={<ProtectedRoute requireAdmin><AdminLayout><ActivityLogs /></AdminLayout></ProtectedRoute>} />
             
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -11,14 +11,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { EmptyState, ErrorState } from '@/components/ui/data-state';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { useAdminActivityLog } from '@/hooks/useAdminActivityLog';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Event = Tables<'events'>;
 
 export default function EventsManagement() {
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<any>(null);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; event: Event | null }>({ open: false, event: null });
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+  const { logActivity } = useAdminActivityLog();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -27,9 +37,21 @@ export default function EventsManagement() {
   const [isPublished, setIsPublished] = useState(false);
 
   const fetchEvents = async () => {
-    const { data } = await supabase.from('events').select('*').order('event_date', { ascending: false });
-    setEvents(data || []);
-    setIsLoading(false);
+    setError(null);
+    try {
+      const { data, error: fetchError } = await supabase.from('events').select('*').order('event_date', { ascending: false });
+      if (fetchError) {
+        console.error('Error fetching events:', fetchError);
+        setError('Failed to load events. Please check your permissions.');
+        return;
+      }
+      setEvents(data || []);
+    } catch (err) {
+      console.error('Error:', err);
+      setError('An unexpected error occurred.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => { fetchEvents(); }, []);
@@ -39,21 +61,47 @@ export default function EventsManagement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    const data = { title, description, location, event_date: eventDate, is_published: isPublished };
+    const eventData = { title, description, location, event_date: eventDate, is_published: isPublished };
     
-    if (editingEvent) {
-      await supabase.from('events').update(data).eq('id', editingEvent.id);
-    } else {
-      await supabase.from('events').insert(data);
+    try {
+      if (editingEvent) {
+        const { error } = await supabase.from('events').update(eventData).eq('id', editingEvent.id);
+        if (error) throw error;
+        toast({ title: 'Event updated successfully' });
+        logActivity({ action: 'update', entityType: 'event', entityId: editingEvent.id, details: { title } });
+      } else {
+        const { data, error } = await supabase.from('events').insert(eventData).select('id').single();
+        if (error) throw error;
+        toast({ title: 'Event created successfully' });
+        logActivity({ action: 'create', entityType: 'event', entityId: data?.id, details: { title } });
+      }
+      setIsDialogOpen(false);
+      resetForm();
+      fetchEvents();
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setIsSaving(false);
     }
-    toast({ title: editingEvent ? 'Event updated' : 'Event created' });
-    setIsDialogOpen(false); resetForm(); fetchEvents(); setIsSaving(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this event?')) return;
-    await supabase.from('events').delete().eq('id', id);
-    toast({ title: 'Event deleted' }); fetchEvents();
+  const handleDelete = async () => {
+    const event = deleteConfirm.event;
+    if (!event) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('events').delete().eq('id', event.id);
+      if (error) throw error;
+      toast({ title: 'Event deleted successfully' });
+      logActivity({ action: 'delete', entityType: 'event', entityId: event.id, details: { title: event.title } });
+      fetchEvents();
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirm({ open: false, event: null });
+    }
   };
 
   return (
@@ -82,7 +130,13 @@ export default function EventsManagement() {
         </Dialog>
       </div>
       <Card><CardContent className="p-0">
-        {isLoading ? <div className="py-12 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto" /></div> : (
+        {isLoading ? (
+          <div className="py-12 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></div>
+        ) : error ? (
+          <ErrorState title="Failed to load events" description={error} onRetry={fetchEvents} />
+        ) : events.length === 0 ? (
+          <EmptyState title="No events yet" description="Create your first event to get started." action={{ label: 'Create Event', onClick: () => setIsDialogOpen(true) }} />
+        ) : (
           <Table>
             <TableHeader><TableRow><TableHead>Title</TableHead><TableHead>Date</TableHead><TableHead>Location</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
             <TableBody>
@@ -93,8 +147,8 @@ export default function EventsManagement() {
                   <TableCell>{evt.location || '-'}</TableCell>
                   <TableCell><Badge variant={evt.is_published ? 'default' : 'secondary'}>{evt.is_published ? 'Published' : 'Draft'}</Badge></TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => { setEditingEvent(evt); setTitle(evt.title); setDescription(evt.description||''); setLocation(evt.location||''); setEventDate(evt.event_date?.slice(0,16)||''); setIsPublished(evt.is_published); setIsDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(evt.id)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => { setEditingEvent(evt); setTitle(evt.title); setDescription(evt.description||''); setLocation(evt.location||''); setEventDate(evt.event_date?.slice(0,16)||''); setIsPublished(evt.is_published || false); setIsDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteConfirm({ open: true, event: evt })} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -102,6 +156,17 @@ export default function EventsManagement() {
           </Table>
         )}
       </CardContent></Card>
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm({ ...deleteConfirm, open })}
+        title="Delete Event"
+        description={`Are you sure you want to delete "${deleteConfirm.event?.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="destructive"
+        onConfirm={handleDelete}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

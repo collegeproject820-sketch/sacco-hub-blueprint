@@ -7,6 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Shield, ShieldOff, UserCheck } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
+import { EmptyState, ErrorState } from '@/components/ui/data-state';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { useAdminActivityLog } from '@/hooks/useAdminActivityLog';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Profile = Tables<'profiles'>;
 
@@ -17,23 +21,36 @@ interface UserWithRole extends Profile {
 export default function UsersManagement() {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [roleConfirm, setRoleConfirm] = useState<{ open: boolean; user: UserWithRole | null }>({ open: false, user: null });
+  const [statusConfirm, setStatusConfirm] = useState<{ open: boolean; user: UserWithRole | null }>({ open: false, user: null });
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+  const { logActivity } = useAdminActivityLog();
+  const { user: currentUser } = useAuth();
 
   const fetchUsers = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        setError('Failed to load users. Please check your permissions.');
+        return;
+      }
 
       const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
         .select('*');
 
-      if (rolesError) throw rolesError;
+      if (rolesError) {
+        setError('Failed to load user roles.');
+        return;
+      }
 
       const usersWithRoles = (profiles || []).map((profile) => {
         const userRole = roles?.find((r) => r.user_id === profile.user_id);
@@ -46,6 +63,7 @@ export default function UsersManagement() {
       setUsers(usersWithRoles);
     } catch (error) {
       console.error('Error fetching users:', error);
+      setError('An unexpected error occurred.');
     } finally {
       setIsLoading(false);
     }
@@ -55,21 +73,48 @@ export default function UsersManagement() {
     fetchUsers();
   }, []);
 
-  const toggleUserRole = async (user: UserWithRole) => {
-    const newRole = user.role === 'admin' ? 'user' : 'admin';
+  const handleRoleChange = async () => {
+    const targetUser = roleConfirm.user;
+    if (!targetUser) return;
+    
+    // Prevent self-demotion
+    if (targetUser.user_id === currentUser?.id && targetUser.role === 'admin') {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot demote yourself',
+        description: 'You cannot remove your own admin privileges.'
+      });
+      setRoleConfirm({ open: false, user: null });
+      return;
+    }
+    
+    const newRole = targetUser.role === 'admin' ? 'user' : 'admin';
+    setIsProcessing(true);
     
     try {
       const { error } = await supabase
         .from('user_roles')
         .update({ role: newRole })
-        .eq('user_id', user.user_id);
+        .eq('user_id', targetUser.user_id);
 
       if (error) throw error;
 
       toast({
         title: 'Role Updated',
-        description: `${user.full_name} is now ${newRole === 'admin' ? 'an admin' : 'a regular user'}`,
+        description: `${targetUser.full_name} is now ${newRole === 'admin' ? 'an admin' : 'a regular user'}`,
       });
+      
+      logActivity({
+        action: 'role_change',
+        entityType: 'user',
+        entityId: targetUser.id,
+        details: { 
+          user_name: targetUser.full_name, 
+          old_role: targetUser.role, 
+          new_role: newRole 
+        }
+      });
+      
       fetchUsers();
     } catch (error: any) {
       toast({
@@ -77,22 +122,53 @@ export default function UsersManagement() {
         title: 'Error',
         description: error.message,
       });
+    } finally {
+      setIsProcessing(false);
+      setRoleConfirm({ open: false, user: null });
     }
   };
 
-  const toggleUserStatus = async (user: UserWithRole) => {
+  const handleStatusChange = async () => {
+    const targetUser = statusConfirm.user;
+    if (!targetUser) return;
+    
+    // Prevent self-disable
+    if (targetUser.user_id === currentUser?.id) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot disable yourself',
+        description: 'You cannot disable your own account.'
+      });
+      setStatusConfirm({ open: false, user: null });
+      return;
+    }
+    
+    setIsProcessing(true);
+    const newStatus = !targetUser.is_active;
+    
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ is_active: !user.is_active })
-        .eq('id', user.id);
+        .update({ is_active: newStatus })
+        .eq('id', targetUser.id);
 
       if (error) throw error;
 
       toast({
         title: 'Status Updated',
-        description: `${user.full_name} has been ${user.is_active ? 'disabled' : 'enabled'}`,
+        description: `${targetUser.full_name} has been ${newStatus ? 'enabled' : 'disabled'}`,
       });
+      
+      logActivity({
+        action: 'status_change',
+        entityType: 'user',
+        entityId: targetUser.id,
+        details: { 
+          user_name: targetUser.full_name, 
+          new_status: newStatus ? 'active' : 'disabled' 
+        }
+      });
+      
       fetchUsers();
     } catch (error: any) {
       toast({
@@ -100,6 +176,9 @@ export default function UsersManagement() {
         title: 'Error',
         description: error.message,
       });
+    } finally {
+      setIsProcessing(false);
+      setStatusConfirm({ open: false, user: null });
     }
   };
 
@@ -116,10 +195,10 @@ export default function UsersManagement() {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
+          ) : error ? (
+            <ErrorState title="Failed to load users" description={error} onRetry={fetchUsers} />
           ) : users.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              No users found.
-            </div>
+            <EmptyState title="No users found" description="Users will appear here once they sign up." />
           ) : (
             <Table>
               <TableHeader>
@@ -155,8 +234,9 @@ export default function UsersManagement() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => toggleUserRole(user)}
+                          onClick={() => setRoleConfirm({ open: true, user })}
                           title={user.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                          disabled={user.user_id === currentUser?.id && user.role === 'admin'}
                         >
                           {user.role === 'admin' ? (
                             <ShieldOff className="h-4 w-4 mr-1" />
@@ -168,8 +248,9 @@ export default function UsersManagement() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => toggleUserStatus(user)}
+                          onClick={() => setStatusConfirm({ open: true, user })}
                           className={user.is_active ? 'text-destructive hover:text-destructive' : ''}
+                          disabled={user.user_id === currentUser?.id}
                         >
                           <UserCheck className="h-4 w-4 mr-1" />
                           {user.is_active ? 'Disable' : 'Enable'}
@@ -183,6 +264,36 @@ export default function UsersManagement() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={roleConfirm.open}
+        onOpenChange={(open) => setRoleConfirm({ ...roleConfirm, open })}
+        title={roleConfirm.user?.role === 'admin' ? 'Remove Admin Role' : 'Grant Admin Role'}
+        description={
+          roleConfirm.user?.role === 'admin'
+            ? `Are you sure you want to remove admin privileges from ${roleConfirm.user?.full_name}?`
+            : `Are you sure you want to make ${roleConfirm.user?.full_name} an administrator?`
+        }
+        confirmText={roleConfirm.user?.role === 'admin' ? 'Remove Admin' : 'Make Admin'}
+        variant={roleConfirm.user?.role === 'admin' ? 'destructive' : 'default'}
+        onConfirm={handleRoleChange}
+        isLoading={isProcessing}
+      />
+
+      <ConfirmDialog
+        open={statusConfirm.open}
+        onOpenChange={(open) => setStatusConfirm({ ...statusConfirm, open })}
+        title={statusConfirm.user?.is_active ? 'Disable User' : 'Enable User'}
+        description={
+          statusConfirm.user?.is_active
+            ? `Are you sure you want to disable ${statusConfirm.user?.full_name}'s account?`
+            : `Are you sure you want to enable ${statusConfirm.user?.full_name}'s account?`
+        }
+        confirmText={statusConfirm.user?.is_active ? 'Disable' : 'Enable'}
+        variant={statusConfirm.user?.is_active ? 'destructive' : 'default'}
+        onConfirm={handleStatusChange}
+        isLoading={isProcessing}
+      />
     </div>
   );
 }
