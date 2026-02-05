@@ -11,14 +11,24 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { ImageUpload } from '@/components/admin/ImageUpload';
+import { EmptyState, ErrorState } from '@/components/ui/data-state';
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { useAdminActivityLog } from '@/hooks/useAdminActivityLog';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Advert = Tables<'adverts'>;
 
 export default function AdvertsManagement() {
-  const [adverts, setAdverts] = useState<any[]>([]);
+  const [adverts, setAdverts] = useState<Advert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingAdvert, setEditingAdvert] = useState<any>(null);
+  const [editingAdvert, setEditingAdvert] = useState<Advert | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; advert: Advert | null }>({ open: false, advert: null });
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+  const { logActivity } = useAdminActivityLog();
 
   const [title, setTitle] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
@@ -28,9 +38,21 @@ export default function AdvertsManagement() {
   const [expiresAt, setExpiresAt] = useState('');
 
   const fetchAdverts = async () => {
-    const { data } = await supabase.from('adverts').select('*').order('created_at', { ascending: false });
-    setAdverts(data || []);
-    setIsLoading(false);
+    setError(null);
+    try {
+      const { data, error: fetchError } = await supabase.from('adverts').select('*').order('created_at', { ascending: false });
+      if (fetchError) {
+        console.error('Error fetching adverts:', fetchError);
+        setError('Failed to load adverts. Please check your permissions.');
+        return;
+      }
+      setAdverts(data || []);
+    } catch (err) {
+      console.error('Error:', err);
+      setError('An unexpected error occurred.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => { fetchAdverts(); }, []);
@@ -43,21 +65,47 @@ export default function AdvertsManagement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    const data = { title, banner_url: bannerUrl, link_url: linkUrl, position, is_active: isActive, expires_at: expiresAt || null };
+    const advertData = { title, banner_url: bannerUrl, link_url: linkUrl, position, is_active: isActive, expires_at: expiresAt || null };
     
-    if (editingAdvert) {
-      await supabase.from('adverts').update(data).eq('id', editingAdvert.id);
-    } else {
-      await supabase.from('adverts').insert(data);
+    try {
+      if (editingAdvert) {
+        const { error } = await supabase.from('adverts').update(advertData).eq('id', editingAdvert.id);
+        if (error) throw error;
+        toast({ title: 'Advert updated successfully' });
+        logActivity({ action: 'update', entityType: 'advert', entityId: editingAdvert.id, details: { title } });
+      } else {
+        const { data, error } = await supabase.from('adverts').insert(advertData).select('id').single();
+        if (error) throw error;
+        toast({ title: 'Advert created successfully' });
+        logActivity({ action: 'create', entityType: 'advert', entityId: data?.id, details: { title } });
+      }
+      setIsDialogOpen(false);
+      resetForm();
+      fetchAdverts();
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setIsSaving(false);
     }
-    toast({ title: editingAdvert ? 'Advert updated' : 'Advert created' });
-    setIsDialogOpen(false); resetForm(); fetchAdverts(); setIsSaving(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this advert?')) return;
-    await supabase.from('adverts').delete().eq('id', id);
-    toast({ title: 'Advert deleted' }); fetchAdverts();
+  const handleDelete = async () => {
+    const advert = deleteConfirm.advert;
+    if (!advert) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('adverts').delete().eq('id', advert.id);
+      if (error) throw error;
+      toast({ title: 'Advert deleted successfully' });
+      logActivity({ action: 'delete', entityType: 'advert', entityId: advert.id, details: { title: advert.title } });
+      fetchAdverts();
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirm({ open: false, advert: null });
+    }
   };
 
   return (
@@ -86,7 +134,13 @@ export default function AdvertsManagement() {
         </Dialog>
       </div>
       <Card><CardContent className="p-0">
-        {isLoading ? <div className="py-12 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto" /></div> : (
+        {isLoading ? (
+          <div className="py-12 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></div>
+        ) : error ? (
+          <ErrorState title="Failed to load adverts" description={error} onRetry={fetchAdverts} />
+        ) : adverts.length === 0 ? (
+          <EmptyState title="No adverts yet" description="Create your first advertisement to get started." action={{ label: 'Create Advert', onClick: () => setIsDialogOpen(true) }} />
+        ) : (
           <Table>
             <TableHeader><TableRow><TableHead>Title</TableHead><TableHead>Status</TableHead><TableHead>Expires</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
             <TableBody>
@@ -96,8 +150,8 @@ export default function AdvertsManagement() {
                   <TableCell><Badge variant={ad.is_active ? 'default' : 'secondary'}>{ad.is_active ? 'Active' : 'Inactive'}</Badge></TableCell>
                   <TableCell>{ad.expires_at ? new Date(ad.expires_at).toLocaleDateString() : 'Never'}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => { setEditingAdvert(ad); setTitle(ad.title); setBannerUrl(ad.banner_url||''); setLinkUrl(ad.link_url||''); setIsActive(ad.is_active); setExpiresAt(ad.expires_at?.split('T')[0]||''); setIsDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(ad.id)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => { setEditingAdvert(ad); setTitle(ad.title); setBannerUrl(ad.banner_url||''); setLinkUrl(ad.link_url||''); setIsActive(ad.is_active || false); setExpiresAt(ad.expires_at?.split('T')[0]||''); setIsDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteConfirm({ open: true, advert: ad })} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -105,6 +159,17 @@ export default function AdvertsManagement() {
           </Table>
         )}
       </CardContent></Card>
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm({ ...deleteConfirm, open })}
+        title="Delete Advert"
+        description={`Are you sure you want to delete "${deleteConfirm.advert?.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="destructive"
+        onConfirm={handleDelete}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

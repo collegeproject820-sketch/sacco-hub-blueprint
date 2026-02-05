@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
@@ -15,6 +15,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshRole: () => Promise<void>;
+  authReady: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,10 +25,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
 
-  const fetchUserRole = async (userId: string): Promise<AppRole | null> => {
+  const fetchUserRole = useCallback(async (userId: string): Promise<AppRole | null> => {
     try {
-      // Fetch all roles for the user - if they have 'admin', that takes priority
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
@@ -40,74 +41,94 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (!data || data.length === 0) return null;
       
-      // Check if user has admin role - admin takes priority
       const hasAdmin = data.some(r => r.role === 'admin');
       if (hasAdmin) return 'admin';
       
-      // Otherwise return first role found
       return data[0]?.role || null;
     } catch (error) {
       console.error('Error fetching role:', error);
       return null;
     }
-  };
+  }, []);
 
-  const refreshRole = async () => {
+  const refreshRole = useCallback(async () => {
     if (user) {
       const userRole = await fetchUserRole(user.id);
       setRole(userRole);
     }
-  };
+  }, [user, fetchUserRole]);
 
   useEffect(() => {
     let mounted = true;
+    let authSubscription: { unsubscribe: () => void } | null = null;
 
-    // Get initial session first
-    const initSession = async () => {
+    const initialize = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!mounted) return;
         
-        setSession(session);
-        setUser(session?.user ?? null);
-
         if (session?.user) {
           const userRole = await fetchUserRole(session.user.id);
-          if (mounted) setRole(userRole);
+          if (mounted) {
+            setSession(session);
+            setUser(session.user);
+            setRole(userRole);
+          }
+        } else {
+          if (mounted) {
+            setSession(null);
+            setUser(null);
+            setRole(null);
+          }
         }
-        
-        if (mounted) setIsLoading(false);
       } catch (error) {
         console.error('Error getting session:', error);
-        if (mounted) setIsLoading(false);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+          setAuthReady(true);
+        }
       }
     };
 
-    initSession();
-
-    // Set up auth state listener for subsequent changes
+    // Set up listener BEFORE getting session (per Supabase docs)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
         
-        setSession(session);
-        setUser(session?.user ?? null);
-
         if (session?.user) {
-          const userRole = await fetchUserRole(session.user.id);
-          if (mounted) setRole(userRole);
+          // Defer role fetch to avoid race condition
+          setTimeout(async () => {
+            if (!mounted) return;
+            const userRole = await fetchUserRole(session.user.id);
+            if (mounted) {
+              setSession(session);
+              setUser(session.user);
+              setRole(userRole);
+              setIsLoading(false);
+              setAuthReady(true);
+            }
+          }, 0);
         } else {
+          setSession(null);
+          setUser(null);
           setRole(null);
+          setIsLoading(false);
+          setAuthReady(true);
         }
       }
     );
+    authSubscription = subscription;
+
+    // Now initialize
+    initialize();
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      authSubscription?.unsubscribe();
     };
-  }, []);
+  }, [fetchUserRole]);
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
@@ -151,6 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     role,
     isLoading,
+    authReady,
     isAdmin: role === 'admin',
     signUp,
     signIn,

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, LogOut, LayoutDashboard, FileText, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/logo.png";
 
@@ -18,7 +19,15 @@ export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAdmin, signOut, isLoading } = useAuth();
+  const { user, isAdmin, signOut, isLoading, authReady } = useAuth();
+
+  // Compute auth state only once authReady is true
+  const authState = useMemo(() => {
+    if (!authReady) return 'loading';
+    if (!user) return 'guest';
+    if (isAdmin) return 'admin';
+    return 'user';
+  }, [authReady, user, isAdmin]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -61,50 +70,51 @@ export function Header() {
 
           {/* CTA Buttons - Desktop */}
           <div className="hidden lg:flex items-center gap-3">
-            {!isLoading && (
+            {authState === 'loading' ? (
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-8 w-16" />
+              </div>
+            ) : authState === 'guest' ? (
               <>
-                {!user ? (
-                  <>
-                    <Button asChild variant="ghost" size="sm" className="font-medium">
-                      <Link to="/login">Sign In</Link>
-                    </Button>
-                    <Button asChild variant="default" size="sm" className="btn-primary font-semibold">
-                      <Link to="/signup">Sign Up</Link>
-                    </Button>
-                  </>
-                ) : isAdmin ? (
-                  <>
-                    <Button asChild variant="default" size="sm" className="btn-primary font-semibold">
-                      <Link to="/admin">
-                        <LayoutDashboard className="mr-2 h-4 w-4" />
-                        Dashboard
-                      </Link>
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={handleSignOut} className="font-medium">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Logout
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button asChild variant="ghost" size="sm" className="font-medium">
-                      <Link to="/submit-news">
-                        <FileText className="mr-2 h-4 w-4" />
-                        Submit News
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" size="sm" className="font-medium">
-                      <Link to="/account">
-                        <User className="mr-2 h-4 w-4" />
-                        My Account
-                      </Link>
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={handleSignOut} className="font-medium">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Logout
-                    </Button>
-                  </>
-                )}
+                <Button asChild variant="ghost" size="sm" className="font-medium">
+                  <Link to="/login">Sign In</Link>
+                </Button>
+                <Button asChild variant="default" size="sm" className="btn-primary font-semibold">
+                  <Link to="/signup">Sign Up</Link>
+                </Button>
+              </>
+            ) : authState === 'admin' ? (
+              <>
+                <Button asChild variant="default" size="sm" className="btn-primary font-semibold">
+                  <Link to="/admin">
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    Dashboard
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleSignOut} className="font-medium">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button asChild variant="ghost" size="sm" className="font-medium">
+                  <Link to="/submit-news">
+                    <FileText className="mr-2 h-4 w-4" />
+                    Submit News
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" size="sm" className="font-medium">
+                  <Link to="/account">
+                    <User className="mr-2 h-4 w-4" />
+                    My Account
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleSignOut} className="font-medium">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
               </>
             )}
           </div>
@@ -139,9 +149,9 @@ export function Header() {
               ))}
               
               {/* Mobile Auth Buttons */}
-              {!isLoading && (
+            {authState !== 'loading' && (
                 <div className="pt-4 border-t border-border mt-2 space-y-2">
-                  {!user ? (
+                {authState === 'guest' ? (
                     <>
                       <Button asChild variant="outline" className="w-full font-medium">
                         <Link to="/login" onClick={() => setIsOpen(false)}>Sign In</Link>
@@ -150,7 +160,7 @@ export function Header() {
                         <Link to="/signup" onClick={() => setIsOpen(false)}>Sign Up</Link>
                       </Button>
                     </>
-                  ) : isAdmin ? (
+                ) : authState === 'admin' ? (
                     <>
                       <Button asChild variant="default" className="w-full btn-primary font-semibold">
                         <Link to="/admin" onClick={() => setIsOpen(false)}>

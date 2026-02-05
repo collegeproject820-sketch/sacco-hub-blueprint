@@ -29,6 +29,8 @@ import {
   Send,
   ChevronDown,
   Check,
+  FolderTree,
+  History,
 } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { formatDistanceToNow } from 'date-fns';
@@ -49,6 +51,7 @@ const sidebarSections = [
       { name: 'Submissions', path: '/admin/submissions', icon: Send },
       { name: 'Events', path: '/admin/events', icon: Calendar },
       { name: 'Adverts', path: '/admin/adverts', icon: Image },
+      { name: 'Categories', path: '/admin/categories', icon: FolderTree },
     ],
   },
   {
@@ -56,6 +59,7 @@ const sidebarSections = [
     items: [
       { name: 'Users', path: '/admin/users', icon: Users },
       { name: 'Settings', path: '/admin/settings', icon: Settings },
+      { name: 'Activity Logs', path: '/admin/logs', icon: History },
     ],
   },
 ];

@@ -2,11 +2,12 @@ import { Link } from "react-router-dom";
 import { Calendar, ArrowRight, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/data-state";
 import { useRealtimeNews } from "@/hooks/useRealtimeNews";
 import { format } from "date-fns";
 
 export function LatestNews() {
-  const { news, isLoading } = useRealtimeNews({ limit: 5 });
+  const { news, isLoading, error, refetch } = useRealtimeNews({ limit: 5 });
 
   if (isLoading) {
     return (
@@ -28,6 +29,28 @@ export function LatestNews() {
               ))}
             </div>
           </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="section-padding bg-background">
+        <div className="container-news">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12">
+            <div>
+              <span className="text-sm font-semibold text-accent uppercase tracking-wider">Stay Updated</span>
+              <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mt-2">
+                Latest News & Insights
+              </h2>
+            </div>
+          </div>
+          <ErrorState 
+            title="Unable to load news" 
+            description={error} 
+            onRetry={refetch} 
+          />
         </div>
       </section>
     );
